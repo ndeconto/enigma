@@ -1,51 +1,51 @@
 EXE_NAME = enigma.exe
 BIN_DIR = bin 
-DEVICECC = nvcc
-DEVICELD = nvcc
-HOSTCC = cl
-HOSTLD = link
-ODIR = obj
+DEVICE_CC = nvcc
+DEVICE_LD = nvcc
+HOST_CC = cl
+HOST_LD = link
+OBJ_DIR = obj
 
-DEVICECCFLAGS = --gpu-architecture=sm_50
-DEVICELDFLAGS = --gpu-architecture=sm_50
-HOSTCCFLAGS =
+DEVICE_CC_FLAGS = --gpu-architecture=sm_50 
+DEVICE_LD_FLAGS = --gpu-architecture=sm_50 
+HOST_CC_FLAGS = -nologo
+HOST_LD_FLAGS = -nologo
 
-CUDASRCS = enigma.cu main.cu
-CSRCS = preprocessing.c
-CUDALINK = $(ODIR)\cuda_link.obj
+CUDA_SRCS = *.cu
+C_SRCS = *.c
+CUDALINK = $(OBJ_DIR)\cuda_link.obj
 
-CUDAOBJ = obj\enigma.obj obj\main.obj
-#CUDAOBJ = $(CUDASRCS:.cu=.obj) #$(patsubst %.cu, $(ODIR)%.obj, $(CUDASRCS))
-COBJ = obj\preprocessing.obj #$(CSRCS:.c=.obj) #$(patsubst %.c, $(ODIR)%.obj, $(CSRCS))
-#COBJ = {CSRCS:%.c=lol%.obj}
+CUDA_OBJ = $(OBJ_DIR)\enigma.obj $(OBJ_DIR)\main.obj
+C_OBJ = $(OBJ_DIR)\preprocessing.obj 
 
 .PHONY: all 
 .SUFFIXES : .cu
+.SILENT :
 
 all: $(EXE_NAME)
 
-{}.cu{$(ODIR)\}.obj:
-	@if not exist $(ODIR) mkdir $(ODIR)
-	$(DEVICECC) -dc $< -o $@ $(DEVICECCFLAGS)
+{}.cu{$(OBJ_DIR)\}.obj:
+	@if not exist $(OBJ_DIR) mkdir $(OBJ_DIR)
+	$(DEVICE_CC) -dc $< -o $@ $(DEVICE_CC_FLAGS)
 	
 	
-{}.c{$(ODIR)\}.obj:
-	@if not exist $(ODIR) mkdir $(ODIR)
-	echo $(COBJ)
-	$(HOSTCC) /c /Fo.\$@ $< $(HOSTCCFLAGS)
+{}.c{$(OBJ_DIR)\}.obj:
+	@if not exist $(OBJ_DIR) mkdir $(OBJ_DIR)
+	echo $(C_OBJ)
+	$(HOST_CC) /c /Fo.\$@ $< $(HOST_CC_FLAGS)
 	
 	
-$(CUDALINK): $(CUDAOBJ) #$(ODIR)$(CUDAOBJ)
-	$(DEVICELD) --device-link $(CUDAOBJ) --output-file $(CUDALINK) $(DEVICELDFLAGS) 
+$(CUDALINK): $(CUDA_OBJ) #$(OBJ_DIR)$(CUDA_OBJ)
+	$(DEVICE_LD) --device-link $(CUDA_OBJ) --output-file $(CUDALINK) $(DEVICE_LD_FLAGS) 
 	
-$(EXE_NAME): $(CUDALINK) $(COBJ)
+$(EXE_NAME): $(CUDALINK) $(C_OBJ)
 	@if not exist $(BIN_DIR) mkdir $(BIN_DIR)
-	$(HOSTLD) $(CUDAOBJ) $** /OUT:$(BIN_DIR)\$@ /LIBPATH:"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v9.1\lib\x64" /DEFAULTLIB:"cudart"
+	$(HOST_LD) $(CUDA_OBJ) $** /OUT:$(BIN_DIR)\$@ /LIBPATH:"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v9.1\lib\x64" /DEFAULTLIB:"cudart" $(HOST_LD_FLAGS)
 
 
 clean:
 	@echo "cleaning..."
 	@if exist $(BIN_DIR) rmdir /S /Q $(BIN_DIR) 
-	@if exist $(ODIR) rmdir /S /Q $(ODIR)
+	@if exist $(OBJ_DIR) rmdir /S /Q $(OBJ_DIR)
 	
 
