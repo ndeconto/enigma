@@ -18,7 +18,6 @@ CUDALINK = $(OBJ_DIR)\cuda_link.obj
 CUDA_OBJ = $(OBJ_DIR)\enigma.obj $(OBJ_DIR)\main.obj
 C_OBJ = $(OBJ_DIR)\preprocessing.obj 
 
-.PHONY: all 
 .SUFFIXES : .cu
 .SILENT :
 
@@ -48,4 +47,5 @@ clean:
 	@if exist $(BIN_DIR) rmdir /S /Q $(BIN_DIR) 
 	@if exist $(OBJ_DIR) rmdir /S /Q $(OBJ_DIR)
 	
-
+test:
+	$(BIN_DIR)\$(EXE_NAME) 3 4 < text\cipher_text.txt

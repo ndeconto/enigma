@@ -13,13 +13,13 @@ extern int loadInput(char** text){
 	
 	//TODO a debug car pas la doc de fgets sans internet
 	while (fgets(line, MAX_INPUT_SIZE, stdin) != NULL){
-		for (i = 0; i < MAX_INPUT_SIZE && line[i] != '\n'; i++){
-			line[i] &= 0b11011111; // ToUpper(line[i]);
-			printf("%c", line[i]);
+		for (i = 0; i < MAX_INPUT_SIZE && line[i] != '\n' && line[i] != '\0'; i++){
+			line[i] = toupper(line[i]);
 			if (line[i] < 'A' || line[i] > 'Z') continue;
 			(*text)[pos++] = line[i] - 'A';
 		}
 	}
+	printf("\n[+] preprocessing done\n");
 	return pos;
 }
 

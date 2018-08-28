@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 /* 
  * if the cipher text is too short, it's of course more difficult to decrypt it
@@ -12,8 +13,15 @@
 */
 #define MAX_INPUT_SIZE 65536
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern int loadInput(char** text);
 extern int factorial(int n);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
