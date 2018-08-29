@@ -30,11 +30,10 @@ all: $(EXE_NAME)
 	
 {}.c{$(OBJ_DIR)\}.obj:
 	@if not exist $(OBJ_DIR) mkdir $(OBJ_DIR)
-	echo $(C_OBJ)
 	$(HOST_CC) /c /Fo.\$@ $< $(HOST_CC_FLAGS)
 	
 	
-$(CUDALINK): $(CUDA_OBJ) #$(OBJ_DIR)$(CUDA_OBJ)
+$(CUDALINK): $(CUDA_OBJ)
 	$(DEVICE_LD) --device-link $(CUDA_OBJ) --output-file $(CUDALINK) $(DEVICE_LD_FLAGS) 
 	
 $(EXE_NAME): $(CUDALINK) $(C_OBJ)
@@ -48,4 +47,4 @@ clean:
 	@if exist $(OBJ_DIR) rmdir /S /Q $(OBJ_DIR)
 	
 test:
-	$(BIN_DIR)\$(EXE_NAME) 3 4 < text\cipher_text.txt
+	$(BIN_DIR)\$(EXE_NAME) 2 3 < text\cipher_text.txt

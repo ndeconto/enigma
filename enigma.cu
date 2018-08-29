@@ -14,65 +14,59 @@ __device__ int rotors[][26] = {
 	{5, 10, 16, 7, 19, 11, 23, 14, 2, 1, 9, 18, 15, 3, 25, 17, 0, 12, 4, 22, 13, 8, 20, 24, 6, 21} 
 };
 
-/* TODO: is there a memory alignment problem using char instead of int? */
-__constant__ char cChosenMemory[CHOSEN_MEM_SIZE];
-
-__device__ unsigned int powerOf26[] = {
-	1, 26, 676, 17576, 456976, 11881376, 308915776
-};
-
-/* productArray[N][n] = N * (N - 1) * ... * (N - n + 1) */ 
-__device__ __constant__ unsigned short productArray[][MAX_ROTORS + 1] = {
-	{1, 0, 0, 0, 0, 0, 0},
-	{1, 1, 0, 0, 0, 0, 0},
-	{1, 2, 2, 0, 0, 0, 0},
-	{1, 3, 6, 6, 0, 0, 0},
-	{1, 4, 12, 24, 24, 0, 0},
-	{1, 5, 20, 60, 120, 120, 0},
-	{1, 6, 30, 120, 360, 720, 720},
-	{1, 7, 42, 210, 840, 2520, 5040},
-	{1, 8, 56, 336, 1680, 6720, 20160}
-};
+/* TODO: is there a memory alignment problem using uint8_t instead of int? */
+uint8_t* chosenMemory;
+__constant__ uint8_t cChosenMemory[CHOSEN_MEM_SIZE];
+unsigned int powerOf26[] = {1, 26, 676, 17576, 456976, 11881376, 308915776};
+__constant__ unsigned int cPowerOf26[MAX_ROTORS + 1];
 
 /* In order to better handle parallelism, each possible key is associated to an
  *	integer. 
  */
-__device__ __host__ void intToKey(uint64_t keyNumber, char* chosenRotors,
-								char* rotorOffset, char n, char N) {
+__host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, 
+								uint8_t** chosenRotors, uint8_t* rotorOffset) {
 	
-	//unsigned int r = keyNumber % powerOf26[n];	
-	for (char k = 0; k < n; k++){
-		//rotorOffset[k] = r % powerOf26[n - k] / powerOf26[n - k - 1] ;
+	unsigned int r = keyNumber % powerOf26[n];	
+	for (uint8_t k = 0; k < n; k++){
+		rotorOffset[k] = r % powerOf26[n - k] / powerOf26[n - k - 1] ;
 	}
-	//keyNumber /= powerOf26[n];
-	for (char k = 0; k < n; k++){
-		chosenRotors[k] = keyNumber % productArray[N - k][n - k] / productArray[N - k - 1][n - k - 1];
+	*chosenRotors = chosenMemory + keyNumber / powerOf26[n] * n;
+}								
+
+__device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, 
+								uint8_t** chosenRotors, uint8_t* rotorOffset) {
+	
+	unsigned int r = keyNumber % cPowerOf26[n];	
+	for (uint8_t k = 0; k < n; k++){
+		rotorOffset[k] = r % cPowerOf26[n - k] / cPowerOf26[n - k - 1] ;
 	}
+	*chosenRotors = cChosenMemory + keyNumber / cPowerOf26[n];
 }								
 
 
-__host__ void precomputationKeyToInt(char* chosenRotorsMemory, int n, int N){
-	char* perm = (char*) malloc(n * sizeof(char));
-	for (int i = 0; i < n; i++) perm[i] = -1;
-	char* used = (char*) calloc(N, sizeof(char));
+
+__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N){
+	uint8_t* perm = (uint8_t*) malloc(n * sizeof(uint8_t));
+	for (int i = 0; i < n; i++) perm[i] = 0xff;
+	uint8_t* used = (uint8_t*) calloc(N, sizeof(uint8_t));
 	int i, j = 0, k = 0;
 	while (k >= 0){
-		for (i = perm[k] + 1; i < N; i++){
+		for (i = (perm[k] == 0xff ? 0 : perm[k] + 1); i < N; i++){
 			if (used[i]) continue;
-			if (perm[k] != -1) used[perm[k]] = 0;
+			if (perm[k] != 0xff) used[perm[k]] = 0;
 			perm[k] = i;
 			used[i] = 1;
 			k++;
 			break;
 		}
 		if (k == n) {
-			memcpy(chosenRotorsMemory + j * n, perm, n * sizeof(char));
+			memcpy(chosenRotorsMemory + j * n, perm, n * sizeof(uint8_t));
 			j++;
 			k--;
 		}
 		else if (i == N) {
 			used[perm[k]] = 0;
-			perm[k] = -1;
+			perm[k] = 0xff;
 			k--;
 		}
 	}
@@ -81,17 +75,29 @@ __host__ void precomputationKeyToInt(char* chosenRotorsMemory, int n, int N){
 }
 
 
-__host__ uint64_t keyToInt(char* chosenRotors, char* rotorOffset, char n,
-							char N){
+__host__ void printKey(uint64_t key, uint8_t n) {
+	uint8_t offset[MAX_ROTORS];
+	uint8_t *rotors;
+	intToKeyHost(key, n, &rotors, offset);
+	printf("Key %lld: ", key);
+	for (int i = 0; i < n; i++) printf("%d ", (int) rotors[i]);
+	printf("|| ");
+	for (int i = 0; i < n; i++) printf("%d ", (int) offset[i]);
+	printf("\n");
+}
+	
+
+__host__ uint64_t keyToInt(uint8_t* chosenRotors, uint8_t* rotorOffset, uint8_t n,
+							uint8_t N){
 	uint64_t r = 0;
-	for (char k = 0; k < n; k++){
+	for (uint8_t k = 0; k < n; k++){
 		r += rotorOffset[k];
 		r *= 26;
 	}
 	
 	
 	//use precomputation here!!!
-	for (char k = n - 1; k >= 0; k++){
+	for (uint8_t k = n - 1; k >= 0; k++){
 		//TODO: r += chosenRotors;
 	}
 	
@@ -107,11 +113,11 @@ __host__ uint64_t keyToInt(char* chosenRotors, char* rotorOffset, char n,
  * N: size of the rotor set 
  */
 __global__ void decrypt_kernel(uint64_t keyIndexOffset, 
-								const char* devCipherText, float* IC,
-								char n, char N){
-	extern __shared__ char s[];
-	char* chosenRotors = s;
-	char* rotorOffset = s + n;
+								const uint8_t* devCipherText, float* IC,
+								uint8_t n, uint8_t N){
+	extern __shared__ uint8_t s[];
+	uint8_t* chosenRotors = s;
+	uint8_t* rotorOffset = s + n;
 	
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	uint64_t keyNumber = i + keyIndexOffset;

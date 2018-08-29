@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
 #define FAILURE 1
 
@@ -36,12 +37,19 @@
 
 #define DETECTION_THRESHOLD 0.067
 
-typedef unsigned long long int uint64_t;
+//typedef unsigned long long int uint64_t;
 
 
-extern __global__ void decrypt_kernel(const char* devCipherText, float* IC, int n, int N);
-extern __host__ void precomputationKeyToInt(char* chosenRotorsMemory, int n, int N);
+__global__ void decrypt_kernel(const uint8_t* devCipherText, float* IC, int n, int N);
+__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);
 
-extern __constant__ char cChosenMemory[];
+__host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, 
+								uint8_t** chosenRotors, uint8_t* rotorOffset);
+__device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, 
+								uint8_t** chosenRotors, uint8_t* rotorOffset);
+__host__ void printKey(uint64_t key, uint8_t n);
+
+extern uint8_t* chosenMemory; 
+extern __constant__ uint8_t cChosenMemory[];
 
 #endif

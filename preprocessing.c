@@ -6,7 +6,7 @@
  * ASICI is not used, but 0 for A, ... 25 for Z.
  * returns the length of preprocessed text
  */ 
-extern int loadInput(char** text){
+int loadInput(char** text){
 	*text = (char*) malloc(sizeof(char) * MAX_INPUT_SIZE);
 	char line[MAX_INPUT_SIZE];
 	int i, pos = 0;
@@ -23,7 +23,7 @@ extern int loadInput(char** text){
 	return pos;
 }
 
-extern int factorial(int n){
+int factorial(int n){
 	if (n <= 1) return 1;
 	return n * factorial(n - 1);
 }
