@@ -22,6 +22,8 @@ C_OBJ = $(OBJ_DIR)\preprocessing.obj
 .SILENT :
 
 all: $(EXE_NAME)
+	cuobjdump --extract-ptx all -all $(BIN_DIR)\$(EXE_NAME)
+	move *.ptx $(OBJ_DIR)\
 
 {}.cu{$(OBJ_DIR)\}.obj:
 	@if not exist $(OBJ_DIR) mkdir $(OBJ_DIR)
