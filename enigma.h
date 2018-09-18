@@ -24,8 +24,10 @@
 /* maximum size of the rotor set */
 #define MAX_ROTOR_SET_SIZE 8
 #define CONST_MEM_SIZE 65536
+#define NB_OF_LETTERS	26
 #define ROTOR_DATA_SIZE (26 * MAX_ROTOR_SET_SIZE) 
 #define CHOSEN_MEM_SIZE (CONST_MEM_SIZE - ROTOR_DATA_SIZE)
+#define NB_OF_REFLEC	3
 
 #define BLOCK_SIZE 		1024
 /*
@@ -34,20 +36,24 @@
  * but 26**6 * 6! = 222 GB)
  */
 #define MAX_DIM_GRID 	10000
+#define KEYS_PER_STEP	(BLOCK_SIZE * MAX_DIM_GRID)
 
 #define DETECTION_THRESHOLD 0.067
 
 //typedef unsigned long long int uint64_t;
 
 
-__global__ void decrypt_kernel(const uint8_t* devCipherText, float* IC, int n, int N);
+__global__ void decryptKernel(uint64_t KeyIndexOffset, int textLength,
+						const uint8_t* devCipherText, float* IC, uint8_t n);
 __host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);
 
-__host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, 
+__host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
-__device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, 
+__device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
 __host__ void printKey(uint64_t key, uint8_t n);
+
+__device__ void keyStroke(uint8_t n, uint8_t* chosenRotors, uint8_t* rotorOffset);
 
 extern uint8_t* chosenMemory; 
 extern __constant__ uint8_t cChosenMemory[];

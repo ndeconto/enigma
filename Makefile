@@ -6,7 +6,7 @@ HOST_CC = cl
 HOST_LD = link
 OBJ_DIR = obj
 
-DEVICE_CC_FLAGS = --gpu-architecture=sm_50 
+DEVICE_CC_FLAGS = --gpu-architecture=sm_50 --ptxas-options=-v
 DEVICE_LD_FLAGS = --gpu-architecture=sm_50 
 HOST_CC_FLAGS = -nologo
 HOST_LD_FLAGS = -nologo

@@ -46,10 +46,11 @@ int main(int argc, char* argv[]){
 	/* we will compute the index of coincidence for each possible key */
 	//TODO: use managed memory
 	IC = (float*) malloc(MAX_DIM_GRID * BLOCK_SIZE * sizeof(float));
-	if (cudaMalloc((void**) &devCipherText, cipherLength * sizeof(uint8_t)) != cudaSuccess 
+	/* in order to avoid branching in kernel, we need a bit more than cipherLength bytes */
+	if (cudaMalloc((void**) &devCipherText, ceil(cipherLength / (float) BLOCK_SIZE) * BLOCK_SIZE * sizeof(uint8_t)) != cudaSuccess 
 		|| cudaMalloc((void**) &devIC, MAX_DIM_GRID * BLOCK_SIZE * sizeof(float)) != cudaSuccess) {
 			printf("cudaMalloc failed! "
-				"Maybe MAX_CIPHER_LENGTH or MAX_DIM_GRID is too big?\n");
+				"Maybe MAX_CIPHER_LENGTH or MAX_DIM_GRID is too large?\n");
 		return FAILURE;
     }
 	cudaMemcpy(devCipherText, cipherText, cipherLength, cudaMemcpyHostToDevice);
@@ -61,21 +62,21 @@ int main(int argc, char* argv[]){
 	chosenMemory = (uint8_t*)malloc(precomputationSize * nbRotors * sizeof(uint8_t));
 	precomputationIntToKey(chosenMemory, nbRotors, rotorSetSize);
 	//test
-	for (int i = 0; i < precomputationSize; i++) {for(int j = 0; j < nbRotors; j++) printf("%d ", chosenMemory[i * nbRotors + j]); printf("\n");}
+	//for (int i = 0; i < precomputationSize; i++) {for(int j = 0; j < nbRotors; j++) printf("%d ", chosenMemory[i * nbRotors + j]); printf("\n");}
 	cudaMemcpyToSymbol(cChosenMemory, chosenMemory, 
 										precomputationSize * nbRotors);
 	
-	uint64_t possibleKeys = (factorial(rotorSetSize)
+	uint64_t possibleKeys = NB_OF_REFLEC * (factorial(rotorSetSize)
 								/ factorial(rotorSetSize - nbRotors) 
 								*  pow(26, nbRotors));
 	printf("There are %lld possible keys... "
 			"Trying to find the good one...\n", possibleKeys);
-	for (int i = 0; i < possibleKeys; i++) printKey(i, nbRotors);
+	//for (int i = 0; i < possibleKeys; i++) printKey(i, nbRotors);
 	int nbSteps = ceil(possibleKeys / ((float) BLOCK_SIZE) / MAX_DIM_GRID);
 	for (int i = 0; i < nbSteps; i++){
-		int dimGrid = min((int) MAX_DIM_GRID, (int) possibleKeys - i * BLOCK_SIZE * MAX_DIM_GRID);
-		/*decrypt_kernel<<<dimGrid, BLOCK_SIZE, 2 * rotorSetSize * sizeof(char)>>>
-				(i, devCipherText, devIC, nbRotors, rotorSetSize);*/
+		int dimGrid = min((int) MAX_DIM_GRID, (int) (possibleKeys - i * KEYS_PER_STEP) / BLOCK_SIZE);
+		decryptKernel<<<dimGrid, BLOCK_SIZE, 2 * rotorSetSize * sizeof(char)>>>
+			(i * KEYS_PER_STEP, cipherLength, devCipherText, devIC, nbRotors);
 		cudaMemcpy(IC, devIC, dimGrid * BLOCK_SIZE, cudaMemcpyDeviceToHost);
 		for (int j = 0; j < dimGrid * BLOCK_SIZE; j++){
 			if (IC[j] > DETECTION_THRESHOLD){
