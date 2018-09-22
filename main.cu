@@ -17,10 +17,12 @@ int main(int argc, char* argv[]){
 		return FAILURE;
     }
 	
-	char* cipherText;
+	uint8_t* cipherText;
 	uint8_t *devCipherText;
 	float *IC, *devIC;
 	int cipherLength = loadInput(&cipherText);
+	printf("Cipher text is: \n");
+	printText(cipherText, cipherLength);
 	printf("Cipher length after preprocessing: %d\n", cipherLength);
 	
 	printf("\n===== ROTOR PART =====\n");
@@ -64,7 +66,9 @@ int main(int argc, char* argv[]){
 	//test
 	//for (int i = 0; i < precomputationSize; i++) {for(int j = 0; j < nbRotors; j++) printf("%d ", chosenMemory[i * nbRotors + j]); printf("\n");}
 	cudaMemcpyToSymbol(cChosenMemory, chosenMemory, 
-										precomputationSize * nbRotors);
+							precomputationSize * nbRotors * sizeof(uint8_t));
+	cudaMemcpyToSymbol(cPowerOf26, powerOf26, (nbRotors + 1) * sizeof(unsigned int));
+	initRotors();
 	
 	uint64_t possibleKeys = NB_OF_REFLEC * (factorial(rotorSetSize)
 								/ factorial(rotorSetSize - nbRotors) 
@@ -72,16 +76,19 @@ int main(int argc, char* argv[]){
 	printf("There are %lld possible keys... "
 			"Trying to find the good one...\n", possibleKeys);
 	//for (int i = 0; i < possibleKeys; i++) printKey(i, nbRotors);
+	printKey(DEBUG_ID, nbRotors);
 	int nbSteps = ceil(possibleKeys / ((float) BLOCK_SIZE) / MAX_DIM_GRID);
 	for (int i = 0; i < nbSteps; i++){
-		int dimGrid = min((int) MAX_DIM_GRID, (int) (possibleKeys - i * KEYS_PER_STEP) / BLOCK_SIZE);
+		int dimGrid = min((int) MAX_DIM_GRID, (int) (possibleKeys - i * KEYS_PER_STEP) / BLOCK_SIZE + 1);
+		printf("Step %d out of %d: dimGrid = %d blocks of %d threads\n", 
+					i + 1, nbSteps, dimGrid, BLOCK_SIZE);
 		decryptKernel<<<dimGrid, BLOCK_SIZE, 2 * rotorSetSize * sizeof(char)>>>
-			(i * KEYS_PER_STEP, cipherLength, devCipherText, devIC, nbRotors);
+			(i * KEYS_PER_STEP, possibleKeys, cipherLength, devCipherText, devIC, nbRotors);
 		cudaMemcpy(IC, devIC, dimGrid * BLOCK_SIZE, cudaMemcpyDeviceToHost);
 		for (int j = 0; j < dimGrid * BLOCK_SIZE; j++){
 			if (IC[j] > DETECTION_THRESHOLD){
-				printf("Key has been found! Key id is %d\n", 
-							j + i * BLOCK_SIZE * MAX_DIM_GRID);
+				//printf("Possible key has been found! (IC = %.3f)\n\t", IC[j]); 
+				//printKey(j + i * BLOCK_SIZE * MAX_DIM_GRID, nbRotors);
 				//TODO s'en servir pour décoder !!!
 			}
 		}

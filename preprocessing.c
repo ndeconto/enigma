@@ -3,11 +3,11 @@
 /* 
  * reads and preprocess stdin, stores the result in text
  * all non alphabetic characters are removed
- * ASICI is not used, but 0 for A, ... 25 for Z.
+ * ASCII is not used, but 0 for A, ... 25 for Z.
  * returns the length of preprocessed text
  */ 
-int loadInput(char** text){
-	*text = (char*) malloc(sizeof(char) * MAX_INPUT_SIZE);
+int loadInput(uint8_t** text){
+	*text = (uint8_t*) malloc(sizeof(uint8_t) * MAX_INPUT_SIZE);
 	char line[MAX_INPUT_SIZE];
 	int i, pos = 0;
 	

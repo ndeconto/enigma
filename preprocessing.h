@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdint.h>
 
 /* 
  * if the cipher text is too short, it's of course more difficult to decrypt it
@@ -17,7 +18,7 @@
 extern "C" {
 #endif
 
-extern int loadInput(char** text);
+extern int loadInput(uint8_t** text);
 extern int factorial(int n);
 
 #ifdef __cplusplus

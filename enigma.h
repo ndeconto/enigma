@@ -9,6 +9,7 @@
 #include <math.h>
 #include <stdint.h>
 
+
 #define FAILURE 1
 
 /* 
@@ -40,22 +41,24 @@
 
 #define DETECTION_THRESHOLD 0.067
 
-//typedef unsigned long long int uint64_t;
+#define DEBUG_ID 0
 
-
-__global__ void decryptKernel(uint64_t KeyIndexOffset, int textLength,
-						const uint8_t* devCipherText, float* IC, uint8_t n);
-__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);
-
+__global__ void decryptKernel(uint64_t KeyIndexOffset, uint64_t maxKey, int textLength,
+						const uint8_t* devCipherText, float* IC, uint8_t n);__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);
+						
+__device__ void initRotors();	
 __host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
 __device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
 __host__ void printKey(uint64_t key, uint8_t n);
+__host__ void printText(uint8_t* text, int length);
 
 __device__ void keyStroke(uint8_t n, uint8_t* chosenRotors, uint8_t* rotorOffset);
 
 extern uint8_t* chosenMemory; 
 extern __constant__ uint8_t cChosenMemory[];
+extern unsigned int powerOf26[];
+extern __constant__ unsigned int cPowerOf26[];
 
 #endif

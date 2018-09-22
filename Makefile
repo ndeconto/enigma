@@ -49,4 +49,4 @@ clean:
 	@if exist $(OBJ_DIR) rmdir /S /Q $(OBJ_DIR)
 	
 test:
-	$(BIN_DIR)\$(EXE_NAME) 2 3 < text\cipher_text.txt
+	$(BIN_DIR)\$(EXE_NAME) 1 2 < text\cipher_text.txt

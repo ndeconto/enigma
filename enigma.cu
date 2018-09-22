@@ -14,6 +14,9 @@ __device__ uint8_t rotors[][26] = {
 	{5, 10, 16, 7, 19, 11, 23, 14, 2, 1, 9, 18, 15, 3, 25, 17, 0, 12, 4, 22, 13, 8, 20, 24, 6, 21} 
 };
 
+/* inverse permutations for rotors */
+__device__ uint8_t rotorsInv[MAX_ROTOR_SET_SIZE][26];
+
 /* when a rotor reachs a notch, the next rotor is advanced */
 __device__ uint8_t notch1[] = {16, 4, 21, 9, 25, 25, 25, 25};
 __device__ uint8_t notch2[] = {0xff, 0xff, 0xff, 0xff, 0xff, 12, 12, 12};
@@ -31,6 +34,18 @@ uint8_t* chosenMemory;
 __constant__ uint8_t cChosenMemory[CHOSEN_MEM_SIZE];
 unsigned int powerOf26[] = {1, 26, 676, 17576, 456976, 11881376, 308915776};
 __constant__ unsigned int cPowerOf26[MAX_ROTORS + 1];
+
+
+__device__ void initRotors(){
+	//code tout pourri, faut faire gaffe au life time de la variable !!! 
+	uint8_t r[NB_OF_LETTERS];
+	for (int j = 0; j < MAX_ROTOR_SET_SIZE; j++) {
+		for (int i = 0; i < NB_OF_LETTERS; i++){
+			r[rotors[j][i]] = i;
+		}
+	}
+}	
+
 
 /* In order to better handle parallelism, each possible key is associated to an
  *	integer. 
@@ -52,7 +67,7 @@ __device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, uint8_t& reflNum,
 	
 	reflNum = keyNumber % 3;
 	keyNumber /= 3;
-	unsigned int r = keyNumber % cPowerOf26[n];	
+	unsigned int r = keyNumber % (uint64_t) cPowerOf26[n];	
 	for (uint8_t k = 0; k < n; k++){
 		rotorOffset[k] = r % cPowerOf26[n - k] / cPowerOf26[n - k - 1] ;
 	}
@@ -100,8 +115,14 @@ __host__ void printKey(uint64_t key, uint8_t n) {
 	for (int i = 0; i < n; i++) printf("%d ", (int) rotors[i]);
 	printf("|| ");
 	for (int i = 0; i < n; i++) printf("%d ", (int) offset[i]);
-	printf("\tReflector %d\n", (int) reflNum);
+	printf("|| %d\n", (int) reflNum);
 } 
+
+__host__ void printText(uint8_t* text, int length){
+	for (int i = 0; i < length; i++) printf("%c", text[i] + 'A');
+	printf("\n");
+	return;
+}
 
 
 /* updates rotor configuration when a letter is processed */
@@ -110,10 +131,13 @@ __device__ void keyStroke(uint8_t n, uint8_t* chosenRotors, uint8_t* rotorOffset
 	 * slower than a code using branching... 
 	 * TO BE TESTED */
 	uint8_t change = 1;
-	for (uint8_t i = 0; i < n; i++){
+	// first rotor always steps
+	rotorOffset[0] = (rotorOffset[0] + 1) % NB_OF_LETTERS;
+	for (uint8_t i = 1; i < n; i++){
 		//the following line could be improved
-		change &= 	((rotorOffset[i] == notch1[chosenRotors[i]])
-					| (rotorOffset[i] == notch2[chosenRotors[i]]));
+		// if the previous rotor is in notch position, the rotor steps
+		change &= 	((rotorOffset[i - 1] == notch1[chosenRotors[i - 1]])
+					| (rotorOffset[i - 1] == notch2[chosenRotors[i - 1]]));
 		rotorOffset[i] += change;
 		rotorOffset[i] %= NB_OF_LETTERS;
 	}
@@ -126,9 +150,9 @@ __device__ void keyStroke(uint8_t n, uint8_t* chosenRotors, uint8_t* rotorOffset
  * n: number of rotors in the enigma machine
  * /// useless, to be removed N: size of the rotor set 
  */
-__global__ void decryptKernel(uint64_t keyIndexOffset, int textLength,
-								const uint8_t* devCipherText, float* IC,
-								uint8_t n){
+__global__ void decryptKernel(uint64_t keyIndexOffset, uint64_t maxKey, 
+								int textLength, const uint8_t* devCipherText, 
+								float* IC, uint8_t n){
 	extern __shared__ uint8_t t[];
 	uint8_t* chosenRotors;
 	uint8_t rotorOffset[MAX_ROTORS];
@@ -138,32 +162,46 @@ __global__ void decryptKernel(uint64_t keyIndexOffset, int textLength,
 	int i = blockIdx.x * blockDim.x + id;
 	
 	/* first, we compute the key parameters (i.e. chosen rotors,
-	 * and the associated offsets) from the key number */
+	 * and associated offsets) from the key number */
 	uint64_t key = i + keyIndexOffset;
+	// stops the threads whose key is out of range
+	// branching in this case does not slow things down
+	if (key >= maxKey) return;
 	intToKeyDev(key, n, reflNum, &chosenRotors, rotorOffset);
 	
-	//copy devCipherText into shared memory
+	// copy devCipherText into shared memory
 	int M = ceil(textLength / (float) blockDim.x) * blockDim.x; 
 	for (int j = 0; j < M; j += blockDim.x) t[j + id] = devCipherText[j + id];
-	//branching, does not impact performance because sync follows
+	// branching, does not impact performance because sync follows anyway
 	if (M + id < textLength) t[M + id] = devCipherText[M + id];
 	__syncthreads();
 	
-	
+	if (id == DEBUG_ID) {
+		printf("Chosen rotors: ");
+		for (int z = 0; z < n; z++) printf("%d ", (int) chosenRotors[z]);
+		printf("\n");
+	}
 	//decipher on the fly, don't store clear text, just store letter frequencies
 	for (int k = 0; k < textLength; k++){
 		
 		//compute corresponding letter for current letter t[k]
+		if (id == DEBUG_ID) {
+			printf("%d: \n", k);
+			printf("rotor offset: ");
+			for (int z = 0; z < n; z++) printf("%d ", (int) rotorOffset[z]);
+			printf("\n\t%d -> ", t[k]);
+		}
 		uint8_t letter = t[k];
 		//forwards leg
 		for (uint8_t a = 0; a < n; a++) 
-			letter = rotors[chosenRotors[a]][rotorOffset[chosenRotors[a]]];
+			letter = rotors[chosenRotors[a]][rotorOffset[a]];
 		//reflector
 		letter = reflectors[reflNum][letter];
 		// backwards leg
 		for (int a = n - 1; a >= 0; a--)
-			letter = rotors[chosenRotors[a]][rotorOffset[chosenRotors[a]]];
-			
+			letter = rotorsInv[chosenRotors[a]][rotorOffset[a]];
+		
+		if (id == DEBUG_ID) printf("%d\n", (int) letter);		
 		freq[letter]++;	
 		keyStroke(n, chosenRotors, rotorOffset);
 	}
@@ -171,5 +209,11 @@ __global__ void decryptKernel(uint64_t keyIndexOffset, int textLength,
 	int s = 0;
 	for (int i = 0; i < NB_OF_LETTERS; i++) s += freq[i] * (freq[i] - 1);
 	IC[i] = ((float) s) / ((float) (textLength * (textLength - 1)));
+	//printf("\n ddaa = %d \n", (int) s);
+	if (id == DEBUG_ID){
+		for (int z = 0; z < NB_OF_LETTERS; z++) printf("%d ", (int) freq[z]);
+		//printf("\n ddaa = %d \n", (int) (s + 1));
+		printf("%.3f ", IC[i]);
+	}
 	
 }
