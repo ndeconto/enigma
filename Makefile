@@ -6,8 +6,8 @@ HOST_CC = cl
 HOST_LD = link
 OBJ_DIR = obj
 
-DEVICE_CC_FLAGS = --gpu-architecture=sm_50 --ptxas-options=-v
-DEVICE_LD_FLAGS = --gpu-architecture=sm_50 
+DEVICE_CC_FLAGS = #--gpu-architecture=sm_50 --ptxas-options=-v
+DEVICE_LD_FLAGS = #--gpu-architecture=sm_50 
 HOST_CC_FLAGS = -nologo
 HOST_LD_FLAGS = -nologo
 
@@ -44,9 +44,9 @@ $(EXE_NAME): $(CUDALINK) $(C_OBJ)
 
 
 clean:
-	@echo "cleaning..."
+	@echo cleaning...
 	@if exist $(BIN_DIR) rmdir /S /Q $(BIN_DIR) 
 	@if exist $(OBJ_DIR) rmdir /S /Q $(OBJ_DIR)
 	
 test:
-	$(BIN_DIR)\$(EXE_NAME) 1 2 < text\cipher_text.txt
+	$(BIN_DIR)\$(EXE_NAME) 3 3 < text\cipher_text.txt

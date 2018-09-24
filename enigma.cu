@@ -18,8 +18,8 @@ __device__ uint8_t rotors[][26] = {
 __device__ uint8_t rotorsInv[MAX_ROTOR_SET_SIZE][26];
 
 /* when a rotor reachs a notch, the next rotor is advanced */
-__device__ uint8_t notch1[] = {16, 4, 21, 9, 25, 25, 25, 25};
-__device__ uint8_t notch2[] = {0xff, 0xff, 0xff, 0xff, 0xff, 12, 12, 12};
+__device__ uint8_t notch1[] = {17, 5, 22, 10, 0, 0, 0, 0};
+__device__ uint8_t notch2[] = {0xff, 0xff, 0xff, 0xff, 0xff, 13, 13, 13};
 
 /* 3 reflectors are possible: */
 __device__ uint8_t reflectors[][26] = {
@@ -36,12 +36,10 @@ unsigned int powerOf26[] = {1, 26, 676, 17576, 456976, 11881376, 308915776};
 __constant__ unsigned int cPowerOf26[MAX_ROTORS + 1];
 
 
-__device__ void initRotors(){
-	//code tout pourri, faut faire gaffe au life time de la variable !!! 
-	uint8_t r[NB_OF_LETTERS];
+__global__ void initRotors(){
 	for (int j = 0; j < MAX_ROTOR_SET_SIZE; j++) {
 		for (int i = 0; i < NB_OF_LETTERS; i++){
-			r[rotors[j][i]] = i;
+			rotorsInv[j][rotors[j][i]] = i;
 		}
 	}
 }	
@@ -169,23 +167,27 @@ __global__ void decryptKernel(uint64_t keyIndexOffset, uint64_t maxKey,
 	if (key >= maxKey) return;
 	intToKeyDev(key, n, reflNum, &chosenRotors, rotorOffset);
 	
+	
 	// copy devCipherText into shared memory
-	int M = ceil(textLength / (float) blockDim.x) * blockDim.x; 
+	int M = textLength / blockDim.x * blockDim.x; 
 	for (int j = 0; j < M; j += blockDim.x) t[j + id] = devCipherText[j + id];
 	// branching, does not impact performance because sync follows anyway
 	if (M + id < textLength) t[M + id] = devCipherText[M + id];
 	__syncthreads();
 	
-	if (id == DEBUG_ID) {
+	if (key == DEBUG_ID) {
 		printf("Chosen rotors: ");
 		for (int z = 0; z < n; z++) printf("%d ", (int) chosenRotors[z]);
-		printf("\n");
+		printf("done\n");
 	}
+	__syncthreads();
+	
 	//decipher on the fly, don't store clear text, just store letter frequencies
 	for (int k = 0; k < textLength; k++){
 		
+		keyStroke(n, chosenRotors, rotorOffset);
 		//compute corresponding letter for current letter t[k]
-		if (id == DEBUG_ID) {
+		if (key == DEBUG_ID) {
 			printf("%d: \n", k);
 			printf("rotor offset: ");
 			for (int z = 0; z < n; z++) printf("%d ", (int) rotorOffset[z]);
@@ -194,25 +196,23 @@ __global__ void decryptKernel(uint64_t keyIndexOffset, uint64_t maxKey,
 		uint8_t letter = t[k];
 		//forwards leg
 		for (uint8_t a = 0; a < n; a++) 
-			letter = rotors[chosenRotors[a]][rotorOffset[a]];
+			letter = (rotors[chosenRotors[a]][(letter + rotorOffset[a]) % 26]
+						+ 26 - rotorOffset[a]) % 26;
 		//reflector
 		letter = reflectors[reflNum][letter];
 		// backwards leg
 		for (int a = n - 1; a >= 0; a--)
-			letter = rotorsInv[chosenRotors[a]][rotorOffset[a]];
-		
-		if (id == DEBUG_ID) printf("%d\n", (int) letter);		
+			letter = (rotorsInv[chosenRotors[a]][(letter + rotorOffset[a]) % 26] 
+						+ 26 - rotorOffset[a]) % 26;
+		if (key == DEBUG_ID) printf("%c\n", (int) letter + 'A');		
 		freq[letter]++;	
-		keyStroke(n, chosenRotors, rotorOffset);
 	}
 	
 	int s = 0;
 	for (int i = 0; i < NB_OF_LETTERS; i++) s += freq[i] * (freq[i] - 1);
 	IC[i] = ((float) s) / ((float) (textLength * (textLength - 1)));
-	//printf("\n ddaa = %d \n", (int) s);
-	if (id == DEBUG_ID){
+	if (key == DEBUG_ID){
 		for (int z = 0; z < NB_OF_LETTERS; z++) printf("%d ", (int) freq[z]);
-		//printf("\n ddaa = %d \n", (int) (s + 1));
 		printf("%.3f ", IC[i]);
 	}
 	

@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include "preprocessing.h"
 #include "enigma.h"
 
@@ -68,7 +70,7 @@ int main(int argc, char* argv[]){
 	cudaMemcpyToSymbol(cChosenMemory, chosenMemory, 
 							precomputationSize * nbRotors * sizeof(uint8_t));
 	cudaMemcpyToSymbol(cPowerOf26, powerOf26, (nbRotors + 1) * sizeof(unsigned int));
-	initRotors();
+	initRotors<<<1, 1>>>();
 	
 	uint64_t possibleKeys = NB_OF_REFLEC * (factorial(rotorSetSize)
 								/ factorial(rotorSetSize - nbRotors) 
@@ -82,13 +84,17 @@ int main(int argc, char* argv[]){
 		int dimGrid = min((int) MAX_DIM_GRID, (int) (possibleKeys - i * KEYS_PER_STEP) / BLOCK_SIZE + 1);
 		printf("Step %d out of %d: dimGrid = %d blocks of %d threads\n", 
 					i + 1, nbSteps, dimGrid, BLOCK_SIZE);
+		clock_t start_t = clock();
 		decryptKernel<<<dimGrid, BLOCK_SIZE, 2 * rotorSetSize * sizeof(char)>>>
 			(i * KEYS_PER_STEP, possibleKeys, cipherLength, devCipherText, devIC, nbRotors);
 		cudaMemcpy(IC, devIC, dimGrid * BLOCK_SIZE, cudaMemcpyDeviceToHost);
+		clock_t end_t = clock();
+		printf("Time elapsed: %.3f seconds\n", (float) (end_t - start_t) / CLOCKS_PER_SEC); 
+		printf("Last error: %s\n", cudaGetErrorName(cudaGetLastError()));
 		for (int j = 0; j < dimGrid * BLOCK_SIZE; j++){
 			if (IC[j] > DETECTION_THRESHOLD){
-				//printf("Possible key has been found! (IC = %.3f)\n\t", IC[j]); 
-				//printKey(j + i * BLOCK_SIZE * MAX_DIM_GRID, nbRotors);
+				printf("Possible key has been found! (IC = %.3f)\n\t", IC[j]); 
+				printKey(j + i * BLOCK_SIZE * MAX_DIM_GRID, nbRotors);
 				//TODO s'en servir pour décoder !!!
 			}
 		}

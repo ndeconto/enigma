@@ -39,14 +39,14 @@
 #define MAX_DIM_GRID 	10000
 #define KEYS_PER_STEP	(BLOCK_SIZE * MAX_DIM_GRID)
 
-#define DETECTION_THRESHOLD 0.067
+#define DETECTION_THRESHOLD 0.67
 
-#define DEBUG_ID 0
+#define DEBUG_ID 32449
 
 __global__ void decryptKernel(uint64_t KeyIndexOffset, uint64_t maxKey, int textLength,
 						const uint8_t* devCipherText, float* IC, uint8_t n);__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);
 						
-__device__ void initRotors();	
+__global__ void initRotors();	
 __host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
 __device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
