@@ -18,8 +18,8 @@ __device__ uint8_t rotors[][26] = {
 __device__ uint8_t rotorsInv[MAX_ROTOR_SET_SIZE][26];
 
 /* when a rotor reachs a notch, the next rotor is advanced */
-__device__ uint8_t notch1[] = {17, 5, 22, 10, 0, 0, 0, 0};
-__device__ uint8_t notch2[] = {0xff, 0xff, 0xff, 0xff, 0xff, 13, 13, 13};
+__device__ uint8_t notch1[] = {16, 4, 21, 9, 25, 25, 25, 25};
+__device__ uint8_t notch2[] = {0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 12, 12, 12};
 
 /* 3 reflectors are possible: */
 __device__ uint8_t reflectors[][26] = {
@@ -130,15 +130,18 @@ __device__ void keyStroke(uint8_t n, uint8_t* chosenRotors, uint8_t* rotorOffset
 	 * TO BE TESTED */
 	uint8_t change = 1;
 	// first rotor always steps
-	rotorOffset[0] = (rotorOffset[0] + 1) % NB_OF_LETTERS;
+	rotorOffset[0]++;
 	for (uint8_t i = 1; i < n; i++){
 		//the following line could be improved
-		// if the previous rotor is in notch position, the rotor steps
-		change &= 	((rotorOffset[i - 1] == notch1[chosenRotors[i - 1]])
-					| (rotorOffset[i - 1] == notch2[chosenRotors[i - 1]]));
+		// if the previous rotor was in notch position, the rotor steps
+		change &= 	((rotorOffset[i - 1] == notch1[chosenRotors[i - 1]] + 1)
+					| (rotorOffset[i - 1] == notch2[chosenRotors[i - 1]] + 1)
+					| ((i != n - 1) & (	rotorOffset[i] == notch1[chosenRotors[i]]
+										| rotorOffset[i] == notch2[chosenRotors[i]])
+						));
 		rotorOffset[i] += change;
-		rotorOffset[i] %= NB_OF_LETTERS;
 	}
+	for(int i = 0; i < n; i++) rotorOffset[i] %= NB_OF_LETTERS;
 }
 	
 /*
@@ -166,7 +169,6 @@ __global__ void decryptKernel(uint64_t keyIndexOffset, uint64_t maxKey,
 	// branching in this case does not slow things down
 	if (key >= maxKey) return;
 	intToKeyDev(key, n, reflNum, &chosenRotors, rotorOffset);
-	
 	
 	// copy devCipherText into shared memory
 	int M = textLength / blockDim.x * blockDim.x; 
@@ -208,12 +210,14 @@ __global__ void decryptKernel(uint64_t keyIndexOffset, uint64_t maxKey,
 		freq[letter]++;	
 	}
 	
+	
+	
 	int s = 0;
 	for (int i = 0; i < NB_OF_LETTERS; i++) s += freq[i] * (freq[i] - 1);
 	IC[i] = ((float) s) / ((float) (textLength * (textLength - 1)));
 	if (key == DEBUG_ID){
 		for (int z = 0; z < NB_OF_LETTERS; z++) printf("%d ", (int) freq[z]);
-		printf("%.3f ", IC[i]);
+		printf("\t---> %.3f\n", IC[i]);
 	}
 	
 }

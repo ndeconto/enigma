@@ -41,7 +41,7 @@
 
 #define DETECTION_THRESHOLD 0.67
 
-#define DEBUG_ID 32449
+#define DEBUG_ID -1 //304435 for double stepping test
 
 __global__ void decryptKernel(uint64_t KeyIndexOffset, uint64_t maxKey, int textLength,
 						const uint8_t* devCipherText, float* IC, uint8_t n);__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);

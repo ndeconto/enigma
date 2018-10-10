@@ -51,7 +51,7 @@ int main(int argc, char* argv[]){
 	//TODO: use managed memory
 	IC = (float*) malloc(MAX_DIM_GRID * BLOCK_SIZE * sizeof(float));
 	/* in order to avoid branching in kernel, we need a bit more than cipherLength bytes */
-	if (cudaMalloc((void**) &devCipherText, ceil(cipherLength / (float) BLOCK_SIZE) * BLOCK_SIZE * sizeof(uint8_t)) != cudaSuccess 
+	if (cudaMalloc((void**) &devCipherText, cipherLength * sizeof(uint8_t)) != cudaSuccess 
 		|| cudaMalloc((void**) &devIC, MAX_DIM_GRID * BLOCK_SIZE * sizeof(float)) != cudaSuccess) {
 			printf("cudaMalloc failed! "
 				"Maybe MAX_CIPHER_LENGTH or MAX_DIM_GRID is too large?\n");
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]){
 		printf("Step %d out of %d: dimGrid = %d blocks of %d threads\n", 
 					i + 1, nbSteps, dimGrid, BLOCK_SIZE);
 		clock_t start_t = clock();
-		decryptKernel<<<dimGrid, BLOCK_SIZE, 2 * rotorSetSize * sizeof(char)>>>
+		decryptKernel<<<dimGrid, BLOCK_SIZE, cipherLength * sizeof(uint8_t)>>>
 			(i * KEYS_PER_STEP, possibleKeys, cipherLength, devCipherText, devIC, nbRotors);
 		cudaMemcpy(IC, devIC, dimGrid * BLOCK_SIZE, cudaMemcpyDeviceToHost);
 		clock_t end_t = clock();
