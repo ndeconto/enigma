@@ -1,7 +1,9 @@
 #include <time.h>
+#include <deque>
 
 #include "preprocessing.h"
 #include "enigma.h"
+
 
 int main(int argc, char* argv[]){
 	if (argc != 3){
@@ -19,10 +21,11 @@ int main(int argc, char* argv[]){
 		return FAILURE;
     }
 	
-	uint8_t* cipherText;
-	uint8_t *devCipherText;
+	uint8_t* cipherText, *clearText;
+	uint8_t *devCipherText, *devClearText;
 	float *IC, *devIC;
 	int cipherLength = loadInput(&cipherText);
+	clearText = (uint8_t*) malloc(sizeof(uint8_t) * cipherLength);
 	printf("Cipher text is: \n");
 	printText(cipherText, cipherLength);
 	printf("Cipher length after preprocessing: %d\n", cipherLength);
@@ -51,7 +54,8 @@ int main(int argc, char* argv[]){
 	//TODO: use managed memory
 	IC = (float*) malloc(MAX_DIM_GRID * BLOCK_SIZE * sizeof(float));
 	/* in order to avoid branching in kernel, we need a bit more than cipherLength bytes */
-	if (cudaMalloc((void**) &devCipherText, cipherLength * sizeof(uint8_t)) != cudaSuccess 
+	if (cudaMalloc((void**) &devCipherText, cipherLength * sizeof(uint8_t)) != cudaSuccess
+		|| cudaMalloc((void**) &devClearText, cipherLength * sizeof(uint8_t)) != cudaSuccess 
 		|| cudaMalloc((void**) &devIC, MAX_DIM_GRID * BLOCK_SIZE * sizeof(float)) != cudaSuccess) {
 			printf("cudaMalloc failed! "
 				"Maybe MAX_CIPHER_LENGTH or MAX_DIM_GRID is too large?\n");
@@ -78,7 +82,7 @@ int main(int argc, char* argv[]){
 	printf("There are %lld possible keys... "
 			"Trying to find the good one...\n", possibleKeys);
 	//for (int i = 0; i < possibleKeys; i++) printKey(i, nbRotors);
-	printKey(DEBUG_ID, nbRotors);
+	if (DEBUG) printKey(DEBUG_ID, nbRotors);
 	int nbSteps = ceil(possibleKeys / ((float) BLOCK_SIZE) / MAX_DIM_GRID);
 	for (int i = 0; i < nbSteps; i++){
 		int dimGrid = min((int) MAX_DIM_GRID, (int) (possibleKeys - i * KEYS_PER_STEP) / BLOCK_SIZE + 1);
@@ -87,22 +91,31 @@ int main(int argc, char* argv[]){
 		clock_t start_t = clock();
 		decryptKernel<<<dimGrid, BLOCK_SIZE, cipherLength * sizeof(uint8_t)>>>
 			(i * KEYS_PER_STEP, possibleKeys, cipherLength, devCipherText, devIC, nbRotors);
-		cudaMemcpy(IC, devIC, dimGrid * BLOCK_SIZE, cudaMemcpyDeviceToHost);
+		cudaMemcpy(IC, devIC, dimGrid * BLOCK_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
 		clock_t end_t = clock();
 		printf("Time elapsed: %.3f seconds\n", (float) (end_t - start_t) / CLOCKS_PER_SEC); 
 		printf("Last error: %s\n", cudaGetErrorName(cudaGetLastError()));
+		
+		std::deque<uint64_t> possibleKeys;
 		for (int j = 0; j < dimGrid * BLOCK_SIZE; j++){
 			if (IC[j] > DETECTION_THRESHOLD){
-				printf("Possible key has been found! (IC = %.3f)\n\t", IC[j]); 
-				printKey(j + i * BLOCK_SIZE * MAX_DIM_GRID, nbRotors);
-				//TODO s'en servir pour décoder !!!
+				printf("Possible key has been found! (IC = %.3f)\n\t", IC[j]);
+				uint64_t key = j + i * BLOCK_SIZE * MAX_DIM_GRID;				
+				printKey(key, nbRotors);
+				possibleKeys.push_back(key);
+				enigmaCipher<<<1, 1>>>(devCipherText, devClearText, cipherLength, key, nbRotors);
+				cudaMemcpy(clearText, devClearText, cipherLength * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+				printf("Corresponding text is:\n");
+				printText(clearText, cipherLength);
 			}
 		}
 	}
 	
 	cudaFree(devCipherText);
+	cudaFree(devClearText);
 	free(chosenMemory);
 	free(cipherText);
+	free(clearText);
 	
 	return 0;
 }

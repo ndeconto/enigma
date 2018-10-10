@@ -122,6 +122,31 @@ __host__ void printText(uint8_t* text, int length){
 	return;
 }
 
+__global__ void enigmaCipher(const uint8_t* input, uint8_t* output, int length,
+						uint64_t keyID, int n){
+
+	uint8_t* chosenRotors;
+	uint8_t rotorOffset[MAX_ROTORS];
+	uint8_t reflNum;
+	intToKeyDev(keyID, n, reflNum, &chosenRotors, rotorOffset);
+	
+	for (int k = 0; k < length; k++){
+		keyStroke(n, chosenRotors, rotorOffset);
+		uint8_t letter = input[k];
+		//forwards leg
+		for (uint8_t a = 0; a < n; a++) 
+			letter = (rotors[chosenRotors[a]][(letter + rotorOffset[a]) % 26]
+						+ 26 - rotorOffset[a]) % 26;
+		//reflector
+		letter = reflectors[reflNum][letter];
+		// backwards leg
+		for (int a = n - 1; a >= 0; a--)
+			letter = (rotorsInv[chosenRotors[a]][(letter + rotorOffset[a]) % 26] 
+						+ 26 - rotorOffset[a]) % 26;		
+		output[k] = letter;
+	}
+} 
+
 
 /* updates rotor configuration when a letter is processed */
 __device__ void keyStroke(uint8_t n, uint8_t* chosenRotors, uint8_t* rotorOffset){

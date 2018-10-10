@@ -36,12 +36,13 @@
  * all possible keys because it does not fit in memory (memory space ~ 1 GB,
  * but 26**6 * 6! = 222 GB)
  */
-#define MAX_DIM_GRID 	10000
+#define MAX_DIM_GRID 	400
 #define KEYS_PER_STEP	(BLOCK_SIZE * MAX_DIM_GRID)
 
-#define DETECTION_THRESHOLD 0.67
+#define DETECTION_THRESHOLD 0.050
 
-#define DEBUG_ID -1 //304435 for double stepping test
+#define DEBUG 1
+#define DEBUG_ID 0 && 0 //304435 for double stepping test
 
 __global__ void decryptKernel(uint64_t KeyIndexOffset, uint64_t maxKey, int textLength,
 						const uint8_t* devCipherText, float* IC, uint8_t n);__host__ void precomputationIntToKey(uint8_t* chosenRotorsMemory, int n, int N);
@@ -51,6 +52,8 @@ __host__ void intToKeyHost(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
 __device__ void intToKeyDev(uint64_t keyNumber, uint8_t n, uint8_t& rNum,
 								uint8_t** chosenRotors, uint8_t* rotorOffset);
+__global__ void enigmaCipher(const uint8_t* input, uint8_t* output, int length,
+								uint64_t keyID, int n);
 __host__ void printKey(uint64_t key, uint8_t n);
 __host__ void printText(uint8_t* text, int length);
 
